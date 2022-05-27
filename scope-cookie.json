@@ -1,0 +1,16 @@
+[
+  {
+    "name": "JSESSIONID",
+    "value": "3DFK7hV4AQnpCCI1aRgVjF6oTyaczWBryH9aDnGj",
+    "domain": "127.0.0.1",
+    "path": "/WebGoat",
+    "expires": -1,
+    "size": 50,
+    "httpOnly": false,
+    "secure": false,
+    "session": true,
+    "sameParty": false,
+    "sourceScheme": "NonSecure",
+    "sourcePort": 8080
+  }
+]
