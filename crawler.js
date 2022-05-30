@@ -3,10 +3,39 @@ const { intercept, patterns } = require('puppeteer-interceptor');
 const { Cluster } = require('puppeteer-cluster');
 const fs = require('fs');
 const { URL } = require('url');
+const winston = require('winston');
+
+
+const logLevels = {
+  fatal: 0,
+  error: 1,
+  warn: 2,
+  info: 3,
+  debug: 4,
+  trace: 5,
+};
+
+
+const logger = winston.createLogger({
+  format: winston.format.simple(),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    //
+    // - Write all logs with importance level of `error` or less to `error.log`
+    // - Write all logs with importance level of `info` or less to `combined.log`
+    //
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isEmpty(value) {
+  return typeof value == 'string' && !value.trim() || typeof value == 'undefined' || value === null;
 }
 
 (async () => {
@@ -55,13 +84,20 @@ function sleep(ms) {
     // await page.setCookie(...cookies);
     await page.setCookie.apply(page, cookies);
 
-    // intercept(page, patterns.All('*'), {
-    //   onInterception: event => {
-    //     console.log(`${event.request.url} ${event.request.method} intercepted.`)
-    //   },
-    // });
 
     await sleep(3000);
+
+
+    intercept(page, patterns.XHR('*'), {
+      onInterception: event => {
+        // console.log(`${event.request.url} ${event.request.method} intercepted.`);
+        let url = event.request.url;
+        cluster.queue(url);
+
+        // capture some data
+
+      },
+    });
 
     await page.goto(url, {
       waitUntil: [
@@ -72,8 +108,6 @@ function sleep(ms) {
     });
 
     console.log("================> task: ", url);
-    const data = await page.evaluate(() => document.querySelector('*').outerHTML);
-    console.log(data);
 
     let a_tags = await page.evaluate(() => {
       let elements = Array.from(document.querySelectorAll('a'));
@@ -87,17 +121,55 @@ function sleep(ms) {
     // filter duplicated links
     for (var i = 0; i < a_tags.length; i++) {
       let tag = a_tags[i];
-      console.log("cluster url: ", tag);
+      // console.log("cluster url: ", tag);
       if (!tag.trim()) {
         continue;
       }
       cluster.queue(tag);
     }
 
-    // a_tags.forEach(tag => {
-    //   console.log("cluster url: ", tag);
-    //   cluster.queue(tag);
-    // });
+    // init javascript env
+    await page.evaluate(() => {
+      window.sleep = function (time) {
+        return new Promise((resolve) => setTimeout(resolve, time));
+      }
+    });
+
+    // dom0 trigger
+    await page.evaluate(() => {
+      (async function trigger_all_inline_event() {
+        let eventNames = ["onabort", "onblur", "onchange", "onclick", "ondblclick", "onerror",
+          "onfocus", "onkeydown", "onkeypress", "onkeyup", "onload", "onmousedown", "onmousemove",
+          "onmouseout", "onmouseover", "onmouseup", "onreset", "onresize", "onselect", "onsubmit",
+          "onunload"];
+        for (let eventName of eventNames) {
+          let event = eventName.replace("on", "");
+          let nodeList = document.querySelectorAll("[" + eventName + "]");
+          if (nodeList.length > 100) {
+            nodeList = nodeList.slice(0, 100);
+          }
+          for (let node of nodeList) {
+            await window.sleep(1000);
+            let evt = document.createEvent('CustomEvent');
+            evt.initCustomEvent(event, false, true, null);
+            try {
+              node.dispatchEvent(evt);
+            }
+            catch (e) {
+              console.error(e);
+            }
+          }
+        }
+      })();
+    });
+
+
+    // dom2 trigger
+
+    // 填充表单
+
+    // 提交表单
+
 
   });
 
@@ -170,5 +242,5 @@ function sleep(ms) {
   await cluster.idle();
   await cluster.close();
 
-  // await browser.close();
+  await browser.close();
 })();
