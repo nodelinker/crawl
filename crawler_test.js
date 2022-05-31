@@ -22,11 +22,11 @@ function sleep(ms) {
         },
     });
 
-    // cookies
-    const cookiesString = fs.readFileSync('scope-cookie.json', 'utf8');
-    const cookies = JSON.parse(cookiesString);
-    await page.setCookie(...cookies);
-    await page.setCookie.apply(page, cookies);
+    // // cookies
+    // const cookiesString = fs.readFileSync('scope-cookie.json', 'utf8');
+    // const cookies = JSON.parse(cookiesString);
+    // await page.setCookie(...cookies);
+    // await page.setCookie.apply(page, cookies);
 
     await page.goto('http://127.0.0.1:8080/WebGoat/attack', {
         waitUntil: [
@@ -48,7 +48,7 @@ function sleep(ms) {
     await sleep(1000);
 
 
-    await page.goto('http://127.0.0.1:8080/WebGoat/start.mvc#lesson/SqlInjectionMitigations.lesson/4', {
+    await page.goto('http://127.0.0.1:8080/WebGoat/start.mvc#lesson/JWT.lesson/2', {
         waitUntil: [
             'load',
             'domcontentloaded',
@@ -125,13 +125,13 @@ function sleep(ms) {
             }
             if (node.nodeType === 1) {
                 if (node.hasChildNodes) {
-                    let index = parseInt(Math.random()*node.children.length,10);
+                    let index = parseInt(Math.random() * node.children.length, 10);
                     try {
                         node.children[index].dispatchEvent(event);
-                    } catch(e) {}
-                    let max = node.children.length>5?5:node.children.length;
-                    for (let count=0;count<max;count++) {
-                        let index = parseInt(Math.random()*node.children.length,10);
+                    } catch (e) { }
+                    let max = node.children.length > 5 ? 5 : node.children.length;
+                    for (let count = 0; count < max; count++) {
+                        let index = parseInt(Math.random() * node.children.length, 10);
                         transmit_child(node.children[index], event, _loop);
                     }
                 }
@@ -151,7 +151,7 @@ function sleep(ms) {
             } else {
                 window.add_even_listener_count_sec_auto[name] += 1;
             }
-            
+
             if (window.add_even_listener_count_sec_auto[name] < 5) {
 
                 let evt = document.createEvent('CustomEvent');
@@ -210,9 +210,81 @@ function sleep(ms) {
         })()
     });
 
+
+    // fill form
+    await page.evaluate(() => {
+        (async function fill_all_form() {
+          // 填充表单
+          let nodeList = document.querySelectorAll("form");
+          for (let node of nodeList) {
+            let inputs = node.querySelectorAll("input");
+            for (let input of inputs) {
+  
+              switch (input.type) {
+                case "":
+                  input.value = "test";
+                  break;
+                case "text":
+                  input.value = "test";
+                  break;
+                case "email":
+                  input.value = "test@test.com";
+                  break;
+                case "password":
+                  input.value = "test";
+                  break;
+                case "tel":
+                  input.value = '12345678901';
+                  break;
+                case "radio":
+                  break;
+                case "checkbox":
+                  break;
+                case "submit":
+                  break;
+                case "reset":
+                  break;
+                case "hidden":
+                  input.value = "test";
+                  break;
+                case "file":
+                  break;
+                case "image":
+                  break;
+                default:
+                  break;
+              }
+            }
+          }
+  
+          // 设置 textarea
+          let nodeListTextarea = document.querySelectorAll("textarea");
+          for (let node of nodeListTextarea) {
+          }
+  
+          // 设置 select
+          let nodeListSelect = document.querySelectorAll("select");
+          for (let node of nodeListSelect) {
+          }
+          
+          // 提交表单
+          let nodeListSubmit = document.querySelectorAll("[type=submit]");
+          for (let node of nodeListSubmit) {
+            await window.sleep(100);
+            try {
+              node.click();
+            }
+            catch (e) {
+              console.error(e);
+            }
+          }
+        })();
+      });
+  
+
     // from trigger
     await page.evaluate(() => {
-        
+
     });
 
 })();
