@@ -48,7 +48,7 @@ function sleep(ms) {
     await sleep(1000);
 
 
-    await page.goto('http://127.0.0.1:8080/WebGoat/start.mvc#lesson/JWT.lesson/2', {
+    await page.goto('http://127.0.0.1:8080/WebGoat/start.mvc#lesson/SqlInjectionAdvanced.lesson/4', {
         waitUntil: [
             'load',
             'domcontentloaded',
@@ -69,6 +69,7 @@ function sleep(ms) {
     });
 
 
+
     // init javascript env
     await page.evaluate(() => {
         window.sleep = function (time) {
@@ -85,15 +86,19 @@ function sleep(ms) {
 
     });
 
+
+
     // dom0 trigger
     await page.evaluate(() => {
-        (async function trigger_all_dom0_event() {
-            let eventNames = ["onabort", "onblur", "onchange", "onclick", "ondblclick", "onerror",
-                "onfocus", "onkeydown", "onkeypress", "onkeyup", "onload", "onmousedown", "onmousemove",
-                "onmouseout", "onmouseover", "onmouseup", "onreset", "onresize", "onselect", "onsubmit",
-                "onunload"];
+        (async function trigger_all_inline_event() {
+            let eventNames = ["onabort", "onblur", "onchange",
+                "onclick", "ondblclick", "onerror",
+                "onfocus", "onkeydown", "onkeypress",
+                "onkeyup", "onload", "onmousedown",
+                "onmousemove", "onmouseout", "onmouseover",
+                "onmouseup", "onreset", "onresize",
+                "onselect", "onsubmit", "onunload"];
             for (let eventName of eventNames) {
-
                 let event = eventName.replace("on", "");
                 let nodeList = document.querySelectorAll("[" + eventName + "]");
                 if (nodeList.length > 100) {
@@ -114,10 +119,9 @@ function sleep(ms) {
         })();
     });
 
+
     // dom2 triger
     await page.evaluate(() => {
-
-
         function transmit_child(node, event, loop) {
             let _loop = loop + 1
             if (_loop > 4) {
@@ -214,73 +218,72 @@ function sleep(ms) {
     // fill form
     await page.evaluate(() => {
         (async function fill_all_form() {
-          // 填充表单
-          let nodeList = document.querySelectorAll("form");
-          for (let node of nodeList) {
-            let inputs = node.querySelectorAll("input");
-            for (let input of inputs) {
-  
-              switch (input.type) {
-                case "":
-                  input.value = "test";
-                  break;
-                case "text":
-                  input.value = "test";
-                  break;
-                case "email":
-                  input.value = "test@test.com";
-                  break;
-                case "password":
-                  input.value = "test";
-                  break;
-                case "tel":
-                  input.value = '12345678901';
-                  break;
-                case "radio":
-                  break;
-                case "checkbox":
-                  break;
-                case "submit":
-                  break;
-                case "reset":
-                  break;
-                case "hidden":
-                  input.value = "test";
-                  break;
-                case "file":
-                  break;
-                case "image":
-                  break;
-                default:
-                  break;
-              }
+            // 填充表单
+            let nodeList = document.querySelectorAll("form");
+            for (let node of nodeList) {
+                let inputs = node.querySelectorAll("input");
+                for (let input of inputs) {
+
+                    switch (input.type) {
+                        case "":
+                            input.value = "test";
+                            break;
+                        case "text":
+                            input.value = "test";
+                            break;
+                        case "email":
+                            input.value = "test@test.com";
+                            break;
+                        case "password":
+                            input.value = "test";
+                            break;
+                        case "tel":
+                            input.value = '12345678901';
+                            break;
+                        case "radio":
+                            break;
+                        case "checkbox":
+                            break;
+                        case "submit":
+                            break;
+                        case "reset":
+                            break;
+                        case "hidden":
+                            input.value = "test";
+                            break;
+                        case "file":
+                            break;
+                        case "image":
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
-          }
-  
-          // 设置 textarea
-          let nodeListTextarea = document.querySelectorAll("textarea");
-          for (let node of nodeListTextarea) {
-          }
-  
-          // 设置 select
-          let nodeListSelect = document.querySelectorAll("select");
-          for (let node of nodeListSelect) {
-          }
-          
-          // 提交表单
-          let nodeListSubmit = document.querySelectorAll("[type=submit]");
-          for (let node of nodeListSubmit) {
-            await window.sleep(100);
-            try {
-              node.click();
+
+            // 设置 textarea
+            let nodeListTextarea = document.querySelectorAll("textarea");
+            for (let node of nodeListTextarea) {
             }
-            catch (e) {
-              console.error(e);
+
+            // 设置 select
+            let nodeListSelect = document.querySelectorAll("select");
+            for (let node of nodeListSelect) {
             }
-          }
+
+            // 提交表单
+            let nodeListSubmit = document.querySelectorAll("[type=submit]");
+            for (let node of nodeListSubmit) {
+                await window.sleep(100);
+                try {
+                    node.click();
+                }
+                catch (e) {
+                    console.error(e);
+                }
+            }
         })();
-      });
-  
+    });
 
     // from trigger
     await page.evaluate(() => {
