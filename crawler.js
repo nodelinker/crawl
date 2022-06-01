@@ -93,9 +93,7 @@ function isEmpty(value) {
       await page.setCookie.apply(page, cookies);
     }
 
-
-    await sleep(3000);
-
+    await sleep(500);
 
     intercept(page, patterns.XHR('*'), {
       onInterception: event => {
@@ -352,6 +350,10 @@ function isEmpty(value) {
         }
       })();
     });
+
+
+    // await page.waitForTimeout(3000);
+    await sleep(3000);
   });
 
 

@@ -1,16 +1,13 @@
 [
   {
     "name": "JSESSIONID",
-    "value": "VRtg_V2piqkd0c_3LdDN0O5lfue7wY-WFdEgpQQH",
+    "value": "etqxqsaYHrTzTWQyxGlYD8sWyytiM7rbZRU8y60J",
     "domain": "127.0.0.1",
     "path": "/WebGoat",
     "expires": -1,
     "size": 50,
     "httpOnly": false,
     "secure": false,
-    "session": true,
-    "sameParty": false,
-    "sourceScheme": "NonSecure",
-    "sourcePort": 8080
+    "session": true
   }
 ]
