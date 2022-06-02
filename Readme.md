@@ -13,6 +13,14 @@
 - [ ] 注释匹配url
 - [ ] js匹配url
 - [ ] url布隆过滤
+- [ ] 过滤动态url
+- [ ] 过滤伪静态url
+- [x] 获取comments link
+- [ ] 获取object link
+- [ ] 增加a标签src, href, data-url, data-href
+- [ ] 处理 30x 跳转
+- [ ] 处理 40x 认证弹窗
+- [ ] 处理 header
 
 
 

@@ -4,6 +4,7 @@ const { Cluster } = require('puppeteer-cluster');
 const fs = require('fs');
 const { URL } = require('url');
 const winston = require('winston');
+const { BloomFilter } = require('bloom-filters')
 
 
 const logLevels = {
@@ -86,7 +87,7 @@ function isEmpty(value) {
     }
 
 
-    if (fs.existsSync('scope-cookie.json')){
+    if (fs.existsSync('scope-cookie.json')) {
       const cookiesString = fs.readFileSync('scope-cookie.json', 'utf8');
       const cookies = JSON.parse(cookiesString);
       // await page.setCookie(...cookies);
@@ -116,7 +117,7 @@ function isEmpty(value) {
     console.log("================> task: ", url);
     logger.info(` ${url}`);
 
-    let a_tags = await page.evaluate(() => {
+    let a_tag_links = await page.evaluate(() => {
       let elements = Array.from(document.querySelectorAll('a'));
       let links = elements.map(element => {
         return element.href
@@ -126,8 +127,8 @@ function isEmpty(value) {
 
     // filter out the links that are not in the target scope
     // filter duplicated links
-    for (var i = 0; i < a_tags.length; i++) {
-      let tag = a_tags[i];
+    for (var i = 0; i < a_tag_links.length; i++) {
+      let tag = a_tag_links[i];
       // console.log("cluster url: ", tag);
       if (!tag.trim()) {
         continue;
@@ -336,7 +337,7 @@ function isEmpty(value) {
         let nodeListSelect = document.querySelectorAll("select");
         for (let node of nodeListSelect) {
         }
-        
+
         // 提交表单
         let nodeListSubmit = document.querySelectorAll("[type=submit]");
         for (let node of nodeListSubmit) {
@@ -396,7 +397,8 @@ function isEmpty(value) {
   });
 
 
-  let a_tags = await page.evaluate(() => {
+  // find a[href]
+  let a_tag_links = await page.evaluate(() => {
 
     let elements = Array.from(document.querySelectorAll('a'));
     let links = elements.map(element => {
@@ -409,17 +411,59 @@ function isEmpty(value) {
   });
 
 
+  // find comments url
+  let comment_links = await page.evaluate(() => {
+
+    function getAllComments(node) {
+      const xPath = "//comment()",
+        result = [];
+
+      let query = document.evaluate(xPath, node, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (let i = 0, length = query.snapshotLength; i < length; ++i) {
+        result.push(query.snapshotItem(i));
+      }
+
+      return result;
+    }
+
+    let links = [];
+    let urlRegex = `((https?|ftp|file):)?//[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]`;
+    let comments = getAllComments(document.documentElement);
+    for (var i = 0; i < comments.length; i++) {
+      var re = new RegExp(urlRegex);
+      let url = comments[i].textContent.match(re);
+      if (url != null && url.length > 0) {
+        links = links.concat(url);
+      }
+      // if (re.test(comments[i].textContent) == true){
+      //     links.push(comments[i].nodeValue);
+      // }
+    }
+
+    return links;
+
+  });
 
   // filter out the links that are not in the target scope
   // filter duplicated links
-  for (var i = 0; i < a_tags.length; i++) {
-    let tag = a_tags[i];
+  for (var i = 0; i < a_tag_links.length; i++) {
+    let tag = a_tag_links[i];
     console.log("cluster url: ", tag);
     if (!tag.trim()) {
       continue;
     }
     cluster.queue(tag);
   }
+
+  for (var i = 0; i < comment_links.length; i++) {
+    let tag = comment_links[i];
+    console.log("cluster url: ", tag);
+    if (!tag.trim()) {
+      continue;
+    }
+    cluster.queue(tag);
+  }
+
 
 
   await cluster.idle();
