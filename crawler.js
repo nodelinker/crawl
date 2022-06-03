@@ -413,7 +413,6 @@ function isEmpty(value) {
 
   // find comments url
   let comment_links = await page.evaluate(() => {
-
     function getAllComments(node) {
       const xPath = "//comment()",
         result = [];
@@ -444,6 +443,78 @@ function isEmpty(value) {
 
   });
 
+  // 遍历节点
+  let xxx_links = await page.evaluate(() => {
+    function getElements(root) {
+      var treeWalker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          "acceptNode": function acceptNode(node) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+      );
+      // skip the first node which is the node specified in the `root`
+      var currentNode = treeWalker.nextNode();
+      var nodeList = [];
+      while (currentNode) {
+
+        nodeList.push(currentNode);
+        currentNode = treeWalker.nextNode();
+
+      }
+      return nodeList;
+    }
+
+    let links = [];
+    let urlRegex = `((https?|ftp|file):)?//[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]`;
+    let elements = getElements(document.documentElement);
+
+    elements.forEach(element => {
+      switch (element.tagName) {
+        case 'HEAD':
+          break;
+        case 'BODY':
+          break;
+        case 'SCRIPT':
+          // javascript
+          element.textContent.match(urlRegex).forEach(url => {
+            links.push(url);
+          });
+          break;
+        case 'STYLE':
+          // css
+          element.textContent.match(urlRegex).forEach(url => {
+            links.push(url);
+          });
+          break;
+        case 'IFRAME':
+          break;
+        case 'FRAME':
+          break;
+        case 'FRAMESET':
+          break;
+        case 'NOFRAMES':
+          break;
+        case 'NOSCRIPT':
+          break;
+        case 'META':
+          break;
+        case 'LINK':
+          break;
+        case 'TITLE':
+          break;
+        case 'BASE':
+          break;
+        default:
+          break;
+      }
+    });
+
+    return links;
+  });
+
   // filter out the links that are not in the target scope
   // filter duplicated links
   for (var i = 0; i < a_tag_links.length; i++) {
@@ -463,6 +534,16 @@ function isEmpty(value) {
     }
     cluster.queue(tag);
   }
+
+  for (var i = 0; i < xxx_links.length; i++) {
+    let tag = xxx_links[i];
+    console.log("cluster url: ", tag);
+    if (!tag.trim()) {
+      continue;
+    }
+    cluster.queue(tag);
+  }
+
 
 
 

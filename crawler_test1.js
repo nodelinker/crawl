@@ -47,7 +47,7 @@ function isEmpty(value) {
 (async () => {
 
 
-    let targetUrl = new URL('http://www.baidu.com/');
+    let targetUrl = new URL('https://www.baidu.com/');
     let targetScope = targetUrl.host;
 
 
@@ -73,24 +73,24 @@ function isEmpty(value) {
     // await sleep(1000);
     // inline trigger
     let links = await page.evaluate(() => {
-        
+
         (async function collect_comment_url() {
             function getAllComments(node) {
                 const xPath = "//comment()",
-                result = [];
-                
+                    result = [];
+
                 let query = document.evaluate(xPath, node, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
                 for (let i = 0, length = query.snapshotLength; i < length; ++i) {
                     result.push(query.snapshotItem(i));
                 }
-                
+
                 return result;
             }
-            
+
             let links = [];
             let urlRegex = `((https?|ftp|file):)?//[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]`;
             let comments = getAllComments(document.documentElement);
-            for (var i =0; i < comments.length; i++) {
+            for (var i = 0; i < comments.length; i++) {
                 var re = new RegExp(urlRegex);
                 let url = comments[i].textContent.match(re);
                 if (url != null && url.length > 0) {
@@ -106,8 +106,77 @@ function isEmpty(value) {
         })();
     });
 
-    console.log("aaaaaaaaaaaaaa", links);
+    // 遍历节点
+    await page.evaluate(() => {
+        function getElements(root) {
+            var treeWalker = document.createTreeWalker(
+                root,
+                NodeFilter.SHOW_ELEMENT,
+                {
+                    "acceptNode": function acceptNode(node) {
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                }
+            );
+            // skip the first node which is the node specified in the `root`
+            var currentNode = treeWalker.nextNode();
+            var nodeList = [];
+            while (currentNode) {
 
+                nodeList.push(currentNode);
+                currentNode = treeWalker.nextNode();
+
+            }
+            return nodeList;
+        }
+
+        let links = [];
+        let urlRegex = `((https?|ftp|file):)?//[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]`;
+        let elements = getElements(document.documentElement);
+
+        elements.forEach(element => {
+            switch (element.tagName) {
+                case 'HEAD':
+                    break;
+                case 'BODY':
+                    break;
+                case 'SCRIPT':
+                    // javascript
+                    element.textContent.match(urlRegex).forEach(url => {
+                        links.push(url);
+                     });
+                    break;
+                case 'STYLE':
+                    // css
+                    element.textContent.match(urlRegex).forEach(url => { 
+                        links.push(url);
+                    });
+                    break;
+                case 'IFRAME':
+                    break;
+                case 'FRAME':
+                    break;
+                case 'FRAMESET':
+                    break;
+                case 'NOFRAMES':
+                    break;
+                case 'NOSCRIPT':
+                    break;
+                case 'META':
+                    break;
+                case 'LINK':
+                    break;
+                case 'TITLE':
+                    break;
+                case 'BASE':
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        return links;
+    });
 
 
     // await browser.close();
