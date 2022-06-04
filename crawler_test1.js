@@ -178,6 +178,5 @@ function isEmpty(value) {
         return links;
     });
 
-
     // await browser.close();
 })();
