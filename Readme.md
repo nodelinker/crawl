@@ -21,6 +21,7 @@
 - [ ] 处理 30x 跳转
 - [ ] 处理 40x 认证弹窗
 - [ ] 处理 header
+- [x] handle javascript alert
 
 
 

@@ -137,6 +137,11 @@ function isEmpty(value) {
 
     }
 
+    // 关闭弹窗
+    page.on('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+
     // init javascript env
     await page.evaluate(() => {
       window.sleep = function (time) {
@@ -396,6 +401,10 @@ function isEmpty(value) {
     console.log('completed write of cookies');
   });
 
+  // 关闭弹窗
+  page.on('dialog', async (dialog) => {
+    await dialog.dismiss();
+  });
 
   // find a[href]
   let a_tag_links = await page.evaluate(() => {
