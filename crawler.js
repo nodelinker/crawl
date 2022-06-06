@@ -1,11 +1,10 @@
-const puppeteer = require('puppeteer');
-const { intercept, patterns } = require('puppeteer-interceptor');
-const { Cluster } = require('puppeteer-cluster');
-const fs = require('fs');
-const { URL } = require('url');
-const winston = require('winston');
-const { BloomFilter } = require('bloom-filters')
-
+const puppeteer = require("puppeteer");
+const { intercept, patterns } = require("puppeteer-interceptor");
+const { Cluster } = require("puppeteer-cluster");
+const fs = require("fs");
+const { URL } = require("url");
+const winston = require("winston");
+const { BloomFilter } = require("bloom-filters");
 
 const logLevels = {
   fatal: 0,
@@ -17,12 +16,24 @@ const logLevels = {
 };
 
 
+// 动态参数查询过滤
+let duplicateCheckUrls = new Set();
+
+// 布隆过滤器
+let bloomFilter = new BloomFilter(10, 4);
+
+
+
 const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss'
+      format: "YYYY-MM-DD HH:mm:ss",
     }),
-    winston.format.printf(info => `${info.timestamp} ${info.level}: ${info.message}` + (info.splat !== undefined ? `${info.splat}` : " "))
+    winston.format.printf(
+      (info) =>
+        `${info.timestamp} ${info.level}: ${info.message}` +
+        (info.splat !== undefined ? `${info.splat}` : " ")
+    )
   ),
   // format: winston.format.simple(),
   // defaultMeta: { service: 'user-service' },
@@ -31,29 +42,73 @@ const logger = winston.createLogger({
     // - Write all logs with importance level of `error` or less to `error.log`
     // - Write all logs with importance level of `info` or less to `combined.log`
     //
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
   ],
 });
 
-
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isEmpty(value) {
-  return typeof value == 'string' && !value.trim() || typeof value == 'undefined' || value === null;
+  return (
+    (typeof value == "string" && !value.trim()) ||
+    typeof value == "undefined" ||
+    value === null
+  );
+}
+
+// get url parms dict
+function getUrlParams(search) {
+  if (search.isEmpty || search == "") {
+    return {};
+  }
+  let hashes = search.slice(search.indexOf("?") + 1).split("&");
+  return hashes.reduce((params, hash) => {
+    let [key, val] = hash.split("=");
+    return Object.assign(params, { [key]: decodeURIComponent(val) });
+  }, {});
+}
+
+function generateUrlPattern(url) {
+  let _url = new URL(url);
+  let urlParams = getUrlParams(_url.search);
+  let urlParamsPattern = [];
+
+  // 检查数据类型
+  var intRe = /^\d+$/;
+  var floatRe = /^\d+\.\d+$/;
+  var boolRe = /^(true|false)$/;
+  var strRe = /^[\w\W]+$/;
+
+  for (const [key, value] of Object.entries(urlParams)) {
+    if (intRe.test(value)) {
+      urlParamsPattern.push(`${key}={int}`);
+    } else if (floatRe.test(value)) {
+      urlParamsPattern.push(`${key}={float}`);
+    } else if (boolRe.test(value)) {
+      urlParamsPattern.push(`${key}={bool}`);
+    } else if (strRe.test(value)) {
+      urlParamsPattern.push(`${key}={str}`);
+    } else {
+      urlParamsPattern.push(`${key}={unkonwn}`);
+    }
+  }
+
+  let urlSearchPattern = urlParamsPattern.join("&");
+  _url.search = urlSearchPattern;
+
+  return _url.href;
 }
 
 (async () => {
-
-
-  let targetUrl = new URL('http://127.0.0.1:8080/WebGoat/attack');
+  let targetUrl = new URL("http://127.0.0.1:8080/WebGoat/attack");
   let targetScope = targetUrl.host;
 
-
   const browser = await puppeteer.launch({
-    headless: false, devtools: true,
+    headless: false,
+    devtools: true,
   });
 
   // 初始化cluster
@@ -65,8 +120,7 @@ function isEmpty(value) {
   });
 
   await cluster.task(async ({ page, data: url }) => {
-
-    let currentScope = '';
+    let currentScope = "";
     try {
       let _url = new URL(url);
       currentScope = _url.host;
@@ -81,14 +135,13 @@ function isEmpty(value) {
     }
 
     // 判断是否为注销页面
-    let isLogout = url.toLowerCase().includes('logout');
+    let isLogout = url.toLowerCase().includes("logout");
     if (isLogout == true) {
       return;
     }
 
-
-    if (fs.existsSync('scope-cookie.json')) {
-      const cookiesString = fs.readFileSync('scope-cookie.json', 'utf8');
+    if (fs.existsSync("scope-cookie.json")) {
+      const cookiesString = fs.readFileSync("scope-cookie.json", "utf8");
       const cookies = JSON.parse(cookiesString);
       // await page.setCookie(...cookies);
       await page.setCookie.apply(page, cookies);
@@ -96,32 +149,27 @@ function isEmpty(value) {
 
     await sleep(500);
 
-    intercept(page, patterns.XHR('*'), {
-      onInterception: event => {
+    intercept(page, patterns.XHR("*"), {
+      onInterception: (event) => {
         // console.log(`${event.request.url} ${event.request.method} intercepted.`);
         // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
         let url = event.request.url;
         cluster.queue(url);
-
       },
     });
 
     await page.goto(url, {
-      waitUntil: [
-        'load',
-        'domcontentloaded',
-        'networkidle0',
-        'networkidle2']
+      waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
     });
 
     console.log("================> task: ", url);
     logger.info(` ${url}`);
 
     let a_tag_links = await page.evaluate(() => {
-      let elements = Array.from(document.querySelectorAll('a'));
-      let links = elements.map(element => {
-        return element.href
-      })
+      let elements = Array.from(document.querySelectorAll("a"));
+      let links = elements.map((element) => {
+        return element.href;
+      });
       return links;
     });
 
@@ -134,11 +182,10 @@ function isEmpty(value) {
         continue;
       }
       cluster.queue(tag);
-
     }
 
     // 关闭弹窗
-    page.on('dialog', async (dialog) => {
+    page.on("dialog", async (dialog) => {
       await dialog.dismiss();
     });
 
@@ -146,7 +193,7 @@ function isEmpty(value) {
     await page.evaluate(() => {
       window.sleep = function (time) {
         return new Promise((resolve) => setTimeout(resolve, time));
-      }
+      };
 
       // hook setInterval 时间设置为60秒 目的是减轻chrome的压力
       window.__originalSetInterval = window.setInterval;
@@ -154,22 +201,38 @@ function isEmpty(value) {
         arguments[1] = 60000;
         return window.__originalSetInterval.apply(this, arguments);
       };
-      Object.defineProperty(window, "setInterval", { "writable": false, "configurable": false });
-
+      Object.defineProperty(window, "setInterval", {
+        writable: false,
+        configurable: false,
+      });
     });
-
-
 
     // dom0 trigger
     await page.evaluate(() => {
       (async function trigger_all_inline_event() {
-        let eventNames = ["onabort", "onblur", "onchange",
-          "onclick", "ondblclick", "onerror",
-          "onfocus", "onkeydown", "onkeypress",
-          "onkeyup", "onload", "onmousedown",
-          "onmousemove", "onmouseout", "onmouseover",
-          "onmouseup", "onreset", "onresize",
-          "onselect", "onsubmit", "onunload"];
+        let eventNames = [
+          "onabort",
+          "onblur",
+          "onchange",
+          "onclick",
+          "ondblclick",
+          "onerror",
+          "onfocus",
+          "onkeydown",
+          "onkeypress",
+          "onkeyup",
+          "onload",
+          "onmousedown",
+          "onmousemove",
+          "onmouseout",
+          "onmouseover",
+          "onmouseup",
+          "onreset",
+          "onresize",
+          "onselect",
+          "onsubmit",
+          "onunload",
+        ];
         for (let eventName of eventNames) {
           let event = eventName.replace("on", "");
           let nodeList = document.querySelectorAll("[" + eventName + "]");
@@ -178,12 +241,11 @@ function isEmpty(value) {
           }
           for (let node of nodeList) {
             await window.sleep(1000);
-            let evt = document.createEvent('CustomEvent');
+            let evt = document.createEvent("CustomEvent");
             evt.initCustomEvent(event, false, true, null);
             try {
               node.dispatchEvent(evt);
-            }
-            catch (e) {
+            } catch (e) {
               console.error(e);
             }
           }
@@ -191,11 +253,10 @@ function isEmpty(value) {
       })();
     });
 
-
     // dom2 triger
     await page.evaluate(() => {
       function transmit_child(node, event, loop) {
-        let _loop = loop + 1
+        let _loop = loop + 1;
         if (_loop > 4) {
           return;
         }
@@ -204,7 +265,7 @@ function isEmpty(value) {
             let index = parseInt(Math.random() * node.children.length, 10);
             try {
               node.children[index].dispatchEvent(event);
-            } catch (e) { }
+            } catch (e) {}
             let max = node.children.length > 5 ? 5 : node.children.length;
             for (let count = 0; count < max; count++) {
               let index = parseInt(Math.random() * node.children.length, 10);
@@ -218,8 +279,20 @@ function isEmpty(value) {
       window.add_even_listener_count_sec_auto = {};
       // record event func , hook addEventListener
       let old_event_handle = Element.prototype.addEventListener;
-      Element.prototype.addEventListener = function (event_name, event_func, useCapture) {
-        let name = "<" + this.tagName + "> " + this.id + this.name + this.getAttribute("class") + "|" + event_name;
+      Element.prototype.addEventListener = function (
+        event_name,
+        event_func,
+        useCapture
+      ) {
+        let name =
+          "<" +
+          this.tagName +
+          "> " +
+          this.id +
+          this.name +
+          this.getAttribute("class") +
+          "|" +
+          event_name;
 
         // 对每个事件设定最大的添加次数，防止无限触发，最大次数为5
         if (!window.add_even_listener_count_sec_auto.hasOwnProperty(name)) {
@@ -229,14 +302,21 @@ function isEmpty(value) {
         }
 
         if (window.add_even_listener_count_sec_auto[name] < 5) {
-
-          let evt = document.createEvent('CustomEvent');
+          let evt = document.createEvent("CustomEvent");
           evt.initCustomEvent(event_name, true, true, null);
 
-          if (event_name == "click" || event_name == "focus" || event_name == "mouseover" || event_name == "select") {
+          if (
+            event_name == "click" ||
+            event_name == "focus" ||
+            event_name == "mouseover" ||
+            event_name == "select"
+          ) {
             transmit_child(this, evt, 0);
           }
-          if ((this.className && this.className.includes("close")) || (this.id && this.id.includes("close"))) {
+          if (
+            (this.className && this.className.includes("close")) ||
+            (this.id && this.id.includes("close"))
+          ) {
             return;
           }
 
@@ -251,7 +331,6 @@ function isEmpty(value) {
 
         old_event_handle.apply(this, arguments);
       };
-
     });
 
     // inline trigger
@@ -264,8 +343,7 @@ function isEmpty(value) {
             await window.sleep(100);
             try {
               eval(attrValue.substring(11));
-            }
-            catch (e) {
+            } catch (e) {
               console.error(e);
             }
           }
@@ -277,15 +355,13 @@ function isEmpty(value) {
             await window.sleep(100);
             try {
               eval(attrValue.substring(11));
-            }
-            catch (e) {
+            } catch (e) {
               console.error(e);
             }
           }
         }
-      })()
+      })();
     });
-
 
     // fill form
     await page.evaluate(() => {
@@ -295,7 +371,6 @@ function isEmpty(value) {
         for (let node of nodeList) {
           let inputs = node.querySelectorAll("input");
           for (let input of inputs) {
-
             switch (input.type) {
               case "":
                 input.value = "test";
@@ -310,7 +385,7 @@ function isEmpty(value) {
                 input.value = "test";
                 break;
               case "tel":
-                input.value = '12345678901';
+                input.value = "12345678901";
                 break;
               case "radio":
                 break;
@@ -349,27 +424,20 @@ function isEmpty(value) {
           await window.sleep(100);
           try {
             node.click();
-          }
-          catch (e) {
+          } catch (e) {
             console.error(e);
           }
         }
       })();
     });
 
-
     // await page.waitForTimeout(3000);
     await sleep(3000);
   });
 
-
   const page = await browser.newPage();
   await page.goto(targetUrl.href, {
-    waitUntil: [
-      'load',
-      'domcontentloaded',
-      'networkidle0',
-      'networkidle2'],
+    waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
   });
 
   // intercept(page, patterns.All('*'), {
@@ -383,42 +451,42 @@ function isEmpty(value) {
   //   // }
   // });
 
-
-  await page.type('input[name=username]', 'admin123', { delay: 20 });
-  await page.type('input[name=password]', '123123', { delay: 20 });
-
-  await page.click('button[type=submit]');
+  await page.type("input[name=username]", "admin123", { delay: 20 });
+  await page.type("input[name=password]", "123123", { delay: 20 });
+  await page.click("button[type=submit]");
 
   // wait for sec
   await sleep(1000);
 
   // login success save cookie
-  const cookies = await page.cookies()
+  const cookies = await page.cookies();
   console.info("cookies are ", cookies);
 
-  fs.writeFile('scope-cookie.json', JSON.stringify(cookies, null, 2), function (err) {
-    if (err) throw err;
-    console.log('completed write of cookies');
-  });
+  fs.writeFile(
+    "scope-cookie.json",
+    JSON.stringify(cookies, null, 2),
+    function (err) {
+      if (err) throw err;
+      console.log("completed write of cookies");
+    }
+  );
 
   // 关闭弹窗
-  page.on('dialog', async (dialog) => {
+  page.on("dialog", async (dialog) => {
     await dialog.dismiss();
   });
 
   // find a[href]
   let a_tag_links = await page.evaluate(() => {
-
-    let elements = Array.from(document.querySelectorAll('a'));
-    let links = elements.map(element => {
-      return element.href
-    })
+    let elements = Array.from(document.querySelectorAll("a"));
+    let links = elements.map((element) => {
+      return element.href;
+    });
     return links;
 
     // let tags = document.querySelectorAll('a');
     // return tags;
   });
-
 
   // find comments url
   let comment_links = await page.evaluate(() => {
@@ -426,7 +494,13 @@ function isEmpty(value) {
       const xPath = "//comment()",
         result = [];
 
-      let query = document.evaluate(xPath, node, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+      let query = document.evaluate(
+        xPath,
+        node,
+        null,
+        XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      );
       for (let i = 0, length = query.snapshotLength; i < length; ++i) {
         result.push(query.snapshotItem(i));
       }
@@ -449,7 +523,6 @@ function isEmpty(value) {
     }
 
     return links;
-
   });
 
   // 遍历节点
@@ -459,19 +532,17 @@ function isEmpty(value) {
         root,
         NodeFilter.SHOW_ELEMENT,
         {
-          "acceptNode": function acceptNode(node) {
+          acceptNode: function acceptNode(node) {
             return NodeFilter.FILTER_ACCEPT;
-          }
+          },
         }
       );
       // skip the first node which is the node specified in the `root`
       var currentNode = treeWalker.nextNode();
       var nodeList = [];
       while (currentNode) {
-
         nodeList.push(currentNode);
         currentNode = treeWalker.nextNode();
-
       }
       return nodeList;
     }
@@ -480,41 +551,41 @@ function isEmpty(value) {
     let urlRegex = `((https?|ftp|file):)?//[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]`;
     let elements = getElements(document.documentElement);
 
-    elements.forEach(element => {
+    elements.forEach((element) => {
       switch (element.tagName) {
-        case 'HEAD':
+        case "HEAD":
           break;
-        case 'BODY':
+        case "BODY":
           break;
-        case 'SCRIPT':
+        case "SCRIPT":
           // javascript
-          element.textContent.match(urlRegex).forEach(url => {
+          element.textContent.match(urlRegex).forEach((url) => {
             links.push(url);
           });
           break;
-        case 'STYLE':
+        case "STYLE":
           // css
-          element.textContent.match(urlRegex).forEach(url => {
+          element.textContent.match(urlRegex).forEach((url) => {
             links.push(url);
           });
           break;
-        case 'IFRAME':
+        case "IFRAME":
           break;
-        case 'FRAME':
+        case "FRAME":
           break;
-        case 'FRAMESET':
+        case "FRAMESET":
           break;
-        case 'NOFRAMES':
+        case "NOFRAMES":
           break;
-        case 'NOSCRIPT':
+        case "NOSCRIPT":
           break;
-        case 'META':
+        case "META":
           break;
-        case 'LINK':
+        case "LINK":
           break;
-        case 'TITLE':
+        case "TITLE":
           break;
-        case 'BASE':
+        case "BASE":
           break;
         default:
           break;
@@ -552,9 +623,6 @@ function isEmpty(value) {
     }
     cluster.queue(tag);
   }
-
-
-
 
   await cluster.idle();
   await cluster.close();
