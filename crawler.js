@@ -15,14 +15,11 @@ const logLevels = {
   trace: 5,
 };
 
-
 // 动态参数查询过滤
-let duplicateCheckUrls = new Set();
+let duplicateDynamicUrls = new Set();
 
 // 布隆过滤器
-let bloomFilter = new BloomFilter(10, 4);
-
-
+let globalBloomFilter = new BloomFilter(10, 4);
 
 const logger = winston.createLogger({
   format: winston.format.combine(
@@ -106,9 +103,33 @@ function generateUrlPattern(url) {
   let targetUrl = new URL("http://127.0.0.1:8080/WebGoat/attack");
   let targetScope = targetUrl.host;
 
+  const launchOptions = {
+    headless: true,
+    ignoreHTTPSErrors: true, // 忽略证书错误
+    waitUntil: "networkidle2",
+    defaultViewport: {
+      width: 1920,
+      height: 1080,
+    },
+    args: [
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--disable-web-security",
+      "--disable-xss-auditor", // 关闭 XSS Auditor
+      "--no-zygote",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--allow-running-insecure-content", // 允许不安全内容
+      "--disable-webgl",
+      "--disable-popup-blocking",
+      //'--proxy-server=http://127.0.0.1:8080'      // 配置代理
+    ],
+  };
+
   const browser = await puppeteer.launch({
     headless: false,
     devtools: true,
+    puppeteerOptions: launchOptions,
   });
 
   // 初始化cluster
@@ -117,6 +138,7 @@ function generateUrlPattern(url) {
     maxConcurrency: 2,
     browser: browser,
     skipDuplicateUrls: true,
+    puppeteerOptions: launchOptions,
   });
 
   await cluster.task(async ({ page, data: url }) => {
