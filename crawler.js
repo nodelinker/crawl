@@ -100,7 +100,8 @@ function generateUrlPattern(url) {
 }
 
 (async () => {
-  let targetUrl = new URL("http://127.0.0.1:8080/WebGoat/attack");
+  // let targetUrl = new URL("http://127.0.0.1:8080/WebGoat/attack");
+  let targetUrl = new URL("http://172.29.16.100:8080/WebGoat/attack");
   let targetScope = targetUrl.host;
 
   const launchOptions = {
@@ -122,22 +123,23 @@ function generateUrlPattern(url) {
       "--allow-running-insecure-content", // 允许不安全内容
       "--disable-webgl",
       "--disable-popup-blocking",
-      //'--proxy-server=http://127.0.0.1:8080'      // 配置代理
+      // '--proxy-server=http://127.0.0.1:7778'      // 配置代理
     ],
   };
 
-  const browser = await puppeteer.launch({
-    headless: false,
-    devtools: true,
-    puppeteerOptions: launchOptions,
-  });
+  // const browser = await puppeteer.launch({
+  //   headless: false,
+  //   devtools: true,
+  // });
+
+  const browser = await puppeteer.launch(launchOptions);
 
   // 初始化cluster
   const cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_CONTEXT,
     maxConcurrency: 2,
-    browser: browser,
     skipDuplicateUrls: true,
+    // timeout: 150 * 1000, // 2.5 min timeout per task
     puppeteerOptions: launchOptions,
   });
 
@@ -169,20 +171,55 @@ function generateUrlPattern(url) {
       await page.setCookie.apply(page, cookies);
     }
 
-    await sleep(500);
 
-    intercept(page, patterns.XHR("*"), {
-      onInterception: (event) => {
-        // console.log(`${event.request.url} ${event.request.method} intercepted.`);
-        // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-        let url = event.request.url;
-        cluster.queue(url);
-      },
-    });
 
-    await page.goto(url, {
-      waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
-    });
+    try {
+
+      await intercept(page, patterns.XHR("*"), {
+        onInterception: (event) => async (response) => {
+          // console.log(`${event.request.url} ${event.request.method} intercepted.`);
+          // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
+          let url = event.request.url;
+          await cluster.queue(url);
+        },
+      });
+      
+      let status = await page.goto(url, {
+        waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
+        timeout: 1000 * 60,
+      });
+      if (status.ok == false) {
+        console.log(` cluster error => ${url} status not ok!`);
+        return;
+      }
+
+    } catch (error) {
+      console.log(`${Date()} cluster error => ${url} ${error}`);
+      // cluster.queue(url);
+      return ;
+    }
+
+
+    // var tryCount = 0;
+    // var trySuccess = false;
+    // do {
+    //   try {
+    //     await page.goto(url, {
+    //       waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
+    //       // [Puppeteer]「TimeoutError: Navigation timeout of 30000 ms exceeded」の解決方法
+    //       timeout: 0,
+    //     });
+    //     trySuccess = true;
+    //   } catch (error) {
+    //     console.log(`${Date()} cluster error => ${url} ${error}`);
+    //     tryCount += 1;
+    //     await sleep(1000);
+    //   }
+    //   if (tryCount > 3) {
+    //     return ;
+    //   }
+    // } while (!trySuccess);
+    
 
     console.log("================> task: ", url);
     logger.info(` ${url}`);
@@ -203,7 +240,7 @@ function generateUrlPattern(url) {
       if (!tag.trim()) {
         continue;
       }
-      cluster.queue(tag);
+      await cluster.queue(tag);
     }
 
     // 关闭弹窗
@@ -473,7 +510,7 @@ function generateUrlPattern(url) {
   //   // }
   // });
 
-  await page.type("input[name=username]", "admin123", { delay: 20 });
+  await page.type("input[name=username]", "nodenode", { delay: 20 });
   await page.type("input[name=password]", "123123", { delay: 20 });
   await page.click("button[type=submit]");
 
@@ -581,13 +618,13 @@ function generateUrlPattern(url) {
           break;
         case "SCRIPT":
           // javascript
-          element.textContent.match(urlRegex).forEach((url) => {
+          element.textContent.match(urlRegex)?.forEach((url) => {
             links.push(url);
           });
           break;
         case "STYLE":
           // css
-          element.textContent.match(urlRegex).forEach((url) => {
+          element.textContent.match(urlRegex)?.forEach((url) => {
             links.push(url);
           });
           break;
@@ -625,7 +662,7 @@ function generateUrlPattern(url) {
     if (!tag.trim()) {
       continue;
     }
-    cluster.queue(tag);
+    await cluster.queue(tag);
   }
 
   for (var i = 0; i < comment_links.length; i++) {
@@ -634,7 +671,7 @@ function generateUrlPattern(url) {
     if (!tag.trim()) {
       continue;
     }
-    cluster.queue(tag);
+    await cluster.queue(tag);
   }
 
   for (var i = 0; i < xxx_links.length; i++) {
@@ -643,11 +680,11 @@ function generateUrlPattern(url) {
     if (!tag.trim()) {
       continue;
     }
-    cluster.queue(tag);
+    await cluster.queue(tag);
   }
-
+  
   await cluster.idle();
   await cluster.close();
-
+  
   await browser.close();
 })();
