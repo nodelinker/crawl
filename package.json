@@ -7,6 +7,7 @@
     "puppeteer-cluster": "^0.23.0",
     "puppeteer-extra-plugin-interceptor": "^0.2.2",
     "puppeteer-interceptor": "^2.2.0",
-    "winston": "^3.7.2"
+    "winston": "^3.7.2",
+    "yargs": "^17.5.1"
   }
 }

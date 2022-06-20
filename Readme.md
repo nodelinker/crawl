@@ -11,9 +11,9 @@
 - [x] simple url filter
 - [x] webgoat 适配
 - [ ] 注释匹配url
-- [ ] js匹配url
-- [ ] url布隆过滤
-- [ ] 识别过滤动态url
+- [x] js匹配url
+- [x] url布隆过滤
+- [x] 识别过滤动态url
 - [ ] 识别过滤伪静态url
 - [x] 获取comments link
 - [ ] 获取object link
@@ -23,6 +23,7 @@
 - [ ] 处理 header
 - [x] handle javascript alert
 - [x] 代理模式
+- [ ] button事件触发，这个比较纠结。点Button会改变页面逻辑走向，在某种场景下会导致页面爬取覆盖率变低。暂时还是不加了
 
 
 

@@ -5,6 +5,9 @@ const fs = require("fs");
 const { URL } = require("url");
 const winston = require("winston");
 const { BloomFilter } = require("bloom-filters");
+const yargs = require("yargs");
+const { option } = require("yargs");
+const { default: cluster } = require("cluster");
 
 const logLevels = {
   fatal: 0,
@@ -19,7 +22,12 @@ const logLevels = {
 let duplicateDynamicUrls = new Set();
 
 // 布隆过滤器
-let globalBloomFilter = new BloomFilter(10, 4);
+// calculated size of the Bloom filter.
+// This is where your size / probability trade-offs are made
+// http://hur.st/bloomfilter?n=100000&p=1.0E-6
+// 2875518 ~350kb
+
+let globalBloomFilter = new BloomFilter(2875518, 10);
 
 const logger = winston.createLogger({
   format: winston.format.combine(
@@ -68,6 +76,11 @@ function getUrlParams(search) {
   }, {});
 }
 
+// check url has paramters
+function hasUrlParams(url) {
+  return url.indexOf("?") > 0;
+}
+
 function generateUrlPattern(url) {
   let _url = new URL(url);
   let urlParams = getUrlParams(_url.search);
@@ -94,18 +107,79 @@ function generateUrlPattern(url) {
   }
 
   let urlSearchPattern = urlParamsPattern.join("&");
-  _url.search = urlSearchPattern;
-
-  return _url.href;
+  return urlSearchPattern;
 }
+
+// add url too queue
+async function addUrlToClusterQueue(cluster, url) {
+
+  // 如果是动态参数查询, 加入简化后加入过滤器
+  if (hasUrlParams(url)) {
+    let dynUrlPattern = generateUrlPattern(url);
+    // if (duplicateDynamicUrls.has(dynUrlPattern)) {
+    //   return;
+    // }else{
+    //   duplicateDynamicUrls.add(dynUrlPattern);
+    // }
+
+    if (globalBloomFilter.has(dynUrlPattern)) {
+      return;
+    } else {
+      globalBloomFilter.add(dynUrlPattern);
+    }
+
+  }else{
+    // if (duplicateDynamicUrls.has(url)) {
+    //   return;
+    // }else{
+    //   duplicateDynamicUrls.add(url);
+    // }
+
+    if (globalBloomFilter.has(url)) {
+      return;
+    } else {
+      globalBloomFilter.add(url);
+    }
+  }
+
+  await cluster.queue(url);
+}
+
+// parse arguments
+const options = yargs
+  .usage("Usage: -n <name>")
+  .option("l", {
+    alias: "url",
+    describe: "Web url",
+    type: "string",
+    demandOption: true,
+    default: "http://121.196.32.153:8080/WebGoat/login",
+  })
+  .option("u", {
+    alias: "user",
+    describe: "Webgoat user",
+    type: "string",
+    demandOption: true,
+    default: "nodenode"
+  })
+  .option("p", {
+    alias: "password",
+    describe: "Webgoat password",
+    type: "string",
+    demandOption: true,
+    default: "123123"
+  }).argv;
 
 (async () => {
   // let targetUrl = new URL("http://127.0.0.1:8080/WebGoat/attack");
-  let targetUrl = new URL("http://172.29.16.100:8080/WebGoat/attack");
+  // let targetUrl = new URL("http://172.29.16.100:8080/WebGoat/attack");
+
+  var targetUrl = new URL(options.url);
+
   let targetScope = targetUrl.host;
 
   const launchOptions = {
-    headless: true,
+    headless: false,
     ignoreHTTPSErrors: true, // 忽略证书错误
     waitUntil: "networkidle2",
     defaultViewport: {
@@ -171,19 +245,17 @@ function generateUrlPattern(url) {
       await page.setCookie.apply(page, cookies);
     }
 
-
-
     try {
-
       await intercept(page, patterns.XHR("*"), {
         onInterception: (event) => async (response) => {
           // console.log(`${event.request.url} ${event.request.method} intercepted.`);
           // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
           let url = event.request.url;
-          await cluster.queue(url);
+          // await cluster.queue(url);
+          await addUrlToClusterQueue(cluster,url);
         },
       });
-      
+
       let status = await page.goto(url, {
         waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
         timeout: 1000 * 60,
@@ -192,13 +264,10 @@ function generateUrlPattern(url) {
         console.log(` cluster error => ${url} status not ok!`);
         return;
       }
-
     } catch (error) {
       console.log(`${Date()} cluster error => ${url} ${error}`);
-      // cluster.queue(url);
-      return ;
+      return;
     }
-
 
     // var tryCount = 0;
     // var trySuccess = false;
@@ -219,7 +288,6 @@ function generateUrlPattern(url) {
     //     return ;
     //   }
     // } while (!trySuccess);
-    
 
     console.log("================> task: ", url);
     logger.info(` ${url}`);
@@ -240,7 +308,9 @@ function generateUrlPattern(url) {
       if (!tag.trim()) {
         continue;
       }
-      await cluster.queue(tag);
+      // await cluster.queue(tag);
+      let url = tag;
+      await addUrlToClusterQueue(cluster, url);
     }
 
     // 关闭弹窗
@@ -447,8 +517,10 @@ function generateUrlPattern(url) {
                 input.value = "12345678901";
                 break;
               case "radio":
+                input.checked = true;
                 break;
               case "checkbox":
+                input.checked = true;
                 break;
               case "submit":
                 break;
@@ -510,8 +582,10 @@ function generateUrlPattern(url) {
   //   // }
   // });
 
-  await page.type("input[name=username]", "nodenode", { delay: 20 });
-  await page.type("input[name=password]", "123123", { delay: 20 });
+  // await page.type("input[name=username]", "nodenode", { delay: 20 });
+  // await page.type("input[name=password]", "123123", { delay: 20 });
+  await page.type("input[name=username]", options.user, { delay: 20 });
+  await page.type("input[name=password]", options.password, { delay: 20 });
   await page.click("button[type=submit]");
 
   // wait for sec
@@ -682,9 +756,9 @@ function generateUrlPattern(url) {
     }
     await cluster.queue(tag);
   }
-  
+
   await cluster.idle();
   await cluster.close();
-  
+
   await browser.close();
 })();
