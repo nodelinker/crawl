@@ -270,25 +270,29 @@ const options = yargs
 
     try {
 
-      intercept(page, patterns.XHR("*"), {
-        onInterception: (event) => {
-          // console.log(`${event.request.url} ${event.request.method} intercepted.`);
-          // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-          try {
-            let url = event.request.url;
-            let method = event.request.method;
-            let headers = event.request.headers;
-            let body = event.request.postData ?? null;
-            let cookies = page.cookies();
+      // intercept(page, patterns.XHR("*"), {
+      //   onInterception: (event) => {
+
+      //     // console.log(`${event.request.url} ${event.request.method} intercepted.`);
+      //     // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
+
+      //     addUrlToClusterQueue(cluster, url);
+
+      //     // try {
+      //     //   let url = event.request.url;
+      //     //   let method = event.request.method;
+      //     //   let headers = event.request.headers;
+      //     //   let body = event.request.postData ?? null;
+      //     //   let cookies = page.cookies();
   
-            // log4Request(url, method, headers, cookies, body);
+      //     //   log4Request(url, method, headers, cookies, body);
             
-            addUrlToClusterQueue(cluster, url);
-          } catch (error) {
-            console.log(error);
-          }
-        },
-      });
+      //     //   addUrlToClusterQueue(cluster, url);
+      //     // } catch (error) {
+      //     //   console.log(error);
+      //     // }
+      //   },
+      // });
       
       // 这是个错误示范，保留
       // intercept(page, patterns.XHR("*"), {
@@ -312,7 +316,7 @@ const options = yargs
       //     }
       //   },
       // });
-  
+
 
       status = await page.goto(url, {
         waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
@@ -333,6 +337,16 @@ const options = yargs
       console.log(`${Date()} cluster error => ${url} ${error}`);
       return;
     }
+
+    intercept(page, patterns.XHR("*"), {
+      onInterception: (event) => {
+
+        console.log(`${event.request.url} ${event.request.method} intercepted.`);
+        // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
+
+        addUrlToClusterQueue(cluster, url);
+      },
+    });
 
     // var tryCount = 0;
     // var trySuccess = false;
@@ -629,8 +643,9 @@ const options = yargs
       })();
     });
 
-    // await page.waitForTimeout(3000);
     await sleep(3000);
+    // await page.waitForTimeout(3000);
+
   });
 
   const page = await browser.newPage();
