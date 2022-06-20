@@ -112,7 +112,6 @@ function generateUrlPattern(url) {
 
 // add url too queue
 async function addUrlToClusterQueue(cluster, url) {
-
   // 如果是动态参数查询, 加入简化后加入过滤器
   if (hasUrlParams(url)) {
     let dynUrlPattern = generateUrlPattern(url);
@@ -127,8 +126,7 @@ async function addUrlToClusterQueue(cluster, url) {
     } else {
       globalBloomFilter.add(dynUrlPattern);
     }
-
-  }else{
+  } else {
     // if (duplicateDynamicUrls.has(url)) {
     //   return;
     // }else{
@@ -143,6 +141,26 @@ async function addUrlToClusterQueue(cluster, url) {
   }
 
   await cluster.queue(url);
+}
+
+function log4Request(
+  url,
+  method = "GET",
+  headers = null,
+  cookies = null,
+  body = null
+) {
+  let json = JSON.stringify({
+    url: url,
+    method: method,
+    headers: headers,
+    cookies: cookies,
+    body: body,
+  });
+  fs.appendFile("save-request-json.txt", json + "\n", function (err) {
+    if (err) throw err;
+    console.log(json);
+  });
 }
 
 // parse arguments
@@ -160,14 +178,14 @@ const options = yargs
     describe: "Webgoat user",
     type: "string",
     demandOption: true,
-    default: "nodenode"
+    default: "nodenode",
   })
   .option("p", {
     alias: "password",
     describe: "Webgoat password",
     type: "string",
     demandOption: true,
-    default: "123123"
+    default: "123123",
   }).argv;
 
 (async () => {
@@ -218,6 +236,8 @@ const options = yargs
   });
 
   await cluster.task(async ({ page, data: url }) => {
+    var status = null;
+
     let currentScope = "";
     try {
       let _url = new URL(url);
@@ -245,18 +265,30 @@ const options = yargs
       await page.setCookie.apply(page, cookies);
     }
 
-    try {
-      await intercept(page, patterns.XHR("*"), {
-        onInterception: (event) => async (response) => {
-          // console.log(`${event.request.url} ${event.request.method} intercepted.`);
-          // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-          let url = event.request.url;
-          // await cluster.queue(url);
-          await addUrlToClusterQueue(cluster,url);
-        },
-      });
+    await intercept(page, patterns.XHR("*"), {
+      onInterception: (event) => async (response) => {
+        // console.log(`${event.request.url} ${event.request.method} intercepted.`);
+        // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
 
-      let status = await page.goto(url, {
+        try {
+          let url = event.request.url;
+          let method = event.request.method;
+          let headers = event.request.headers;
+          let body = event.request.body;
+          let cookies = await page.cookies();
+
+          // await cluster.queue(url);
+          log4Request(url, method, headers, cookies, body);
+
+          await addUrlToClusterQueue(cluster, url);
+        } catch (error) {
+          console.log(error);
+        }
+      },
+    });
+
+    try {
+      status = await page.goto(url, {
         waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
         timeout: 1000 * 60,
       });
@@ -264,6 +296,13 @@ const options = yargs
         console.log(` cluster error => ${url} status not ok!`);
         return;
       }
+
+      let method = status.request().method();
+      let headers = status.request().headers();
+      let body = status.request().postData() ?? null;
+
+      let cookies = await page.cookies();
+      log4Request(url, method, headers, cookies, body);
     } catch (error) {
       console.log(`${Date()} cluster error => ${url} ${error}`);
       return;
@@ -567,7 +606,7 @@ const options = yargs
   });
 
   const page = await browser.newPage();
-  await page.goto(targetUrl.href, {
+  let status = await page.goto(targetUrl.href, {
     waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
   });
 
