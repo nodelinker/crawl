@@ -197,7 +197,7 @@ const options = yargs
   let targetScope = targetUrl.host;
 
   const launchOptions = {
-    headless: false,
+    headless: true,
     ignoreHTTPSErrors: true, // 忽略证书错误
     waitUntil: "networkidle2",
     defaultViewport: {
@@ -215,25 +215,26 @@ const options = yargs
       "--allow-running-insecure-content", // 允许不安全内容
       "--disable-webgl",
       "--disable-popup-blocking",
-      // '--proxy-server=http://127.0.0.1:7778'      // 配置代理
+      //'--proxy-server=http://127.0.0.1:8080'      // 配置代理
     ],
   };
 
-  // const browser = await puppeteer.launch({
-  //   headless: false,
-  //   devtools: true,
-  // });
-
-  const browser = await puppeteer.launch(launchOptions);
+  const browser = await puppeteer.launch({
+    headless: false,
+    devtools: true,
+    puppeteerOptions: launchOptions,
+  });
 
   // 初始化cluster
   const cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_CONTEXT,
     maxConcurrency: 2,
+    // browser: browser,
     skipDuplicateUrls: true,
-    // timeout: 150 * 1000, // 2.5 min timeout per task
     puppeteerOptions: launchOptions,
   });
+
+
 
   await cluster.task(async ({ page, data: url }) => {
     var status = null;
@@ -265,27 +266,50 @@ const options = yargs
       await page.setCookie.apply(page, cookies);
     }
 
-    await intercept(page, patterns.XHR("*"), {
-      onInterception: (event) => async (response) => {
-        // console.log(`${event.request.url} ${event.request.method} intercepted.`);
-        // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
 
+    intercept(page, patterns.XHR("*"), {
+      onInterception: (event) => {
+        console.log(`${event.request.url} ${event.request.method} intercepted.`);
+        logger.info(`${event.request.url} ${event.request.method} intercepted.`);
         try {
           let url = event.request.url;
           let method = event.request.method;
           let headers = event.request.headers;
-          let body = event.request.body;
-          let cookies = await page.cookies();
+          let body = event.request.postData ?? null;
+          let cookies = page.cookies();
 
           // await cluster.queue(url);
           log4Request(url, method, headers, cookies, body);
 
-          await addUrlToClusterQueue(cluster, url);
+          addUrlToClusterQueue(cluster, url);
         } catch (error) {
           console.log(error);
         }
       },
     });
+    
+    // 这是个错误示范，保留
+    // intercept(page, patterns.XHR("*"), {
+    //   onInterception: (event) => async (response) => {
+    //     console.log(`${event.request.url} ${event.request.method} intercepted.`);
+    //     // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
+
+    //     try {
+    //       let url = event.request.url;
+    //       let method = event.request.method;
+    //       let headers = event.request.headers;
+    //       let body = event.request.body;
+    //       let cookies = await page.cookies();
+
+    //       // await cluster.queue(url);
+    //       log4Request(url, method, headers, cookies, body);
+
+    //       await addUrlToClusterQueue(cluster, url);
+    //     } catch (error) {
+    //       console.log(error);
+    //     }
+    //   },
+    // });
 
     try {
       status = await page.goto(url, {
@@ -598,6 +622,8 @@ const options = yargs
             console.error(e);
           }
         }
+
+        await window.sleep(10000);
       })();
     });
 
@@ -796,6 +822,7 @@ const options = yargs
     await cluster.queue(tag);
   }
 
+  // await cluster.queue('http://121.196.32.153:8080/WebGoat/start.mvc#lesson/SqlInjection.lesson/10');
   await cluster.idle();
   await cluster.close();
 
