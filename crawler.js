@@ -144,7 +144,11 @@ async function addUrlToClusterQueue(cluster, url, method = "GET") {
     }
   }
 
-  await cluster.queue(url);
+  // 只有GET方法才能加入队列
+  if (method == "GET") {
+    await cluster.queue(url);
+  }
+
   return true;
 }
 
@@ -342,10 +346,10 @@ const options = yargs
             let eventUrl = event.request.url;
             let eventMethod = event.request.method;
   
-            console.log(`${eventUrl} ${eventMethod} intercepted.`);
+            // console.log(`${eventUrl} ${eventMethod} intercepted.`);
             // logger.info(`${eventUrl} ${eventMethod} intercepted.`);
   
-  
+            
             // add url queue
             let isCapture = addUrlToClusterQueue(
               cluster,
@@ -364,11 +368,13 @@ const options = yargs
   
             });  
           } catch (error) {
-            
+            console.log(error);
           }
 
         },
       });
+
+
     } catch (error) {
       console.log(`${Date()} cluster error => ${url} ${error}`);
       return;

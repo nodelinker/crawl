@@ -10,7 +10,7 @@
 - [x] form triger
 - [x] simple url filter
 - [x] webgoat 适配
-- [ ] 注释匹配url
+- [x] 注释匹配url
 - [x] js匹配url
 - [x] url布隆过滤
 - [x] 识别过滤动态url
@@ -20,7 +20,7 @@
 - [ ] 增加a标签src, href, data-url, data-href
 - [ ] 处理 30x 跳转
 - [ ] 处理 40x 认证弹窗
-- [ ] 处理 header
+- [x] 处理 header
 - [x] handle javascript alert
 - [x] 代理模式
 - [ ] button事件触发，这个比较纠结。点Button会改变页面逻辑走向，在某种场景下会导致页面爬取覆盖率变低。暂时还是不加了
