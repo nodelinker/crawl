@@ -33,4 +33,7 @@ webgoat-combined-all.txt
 
 webgoat-combined-filter.txt
 
+## 问题
 
+webgoat 太慢导致出了大量的 Navigation failed because browser has disconnected!
+内网环境非常少，一般都是服务端不响应导致的。强行处理会出现各种crash目前建议就不处理了。

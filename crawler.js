@@ -27,7 +27,7 @@ let duplicateDynamicUrls = new Set();
 // http://hur.st/bloomfilter?n=100000&p=1.0E-6
 // 2875518 ~350kb
 
-let globalBloomFilter = new BloomFilter(2875518, 10);
+let globalBloomFilter = new BloomFilter(1073741824, 10);
 
 const logger = winston.createLogger({
   format: winston.format.combine(
@@ -107,40 +107,62 @@ function generateUrlPattern(url) {
   }
 
   let urlSearchPattern = urlParamsPattern.join("&");
-  return urlSearchPattern;
+  _url.search = urlSearchPattern;
+  return _url.href;
 }
 
 // add url too queue 包含了去重功能
-async function addUrlToClusterQueue(cluster, url) {
+async function addUrlToClusterQueue(cluster, url, method = "GET") {
   // 如果是动态参数查询, 加入简化后加入过滤器
   if (hasUrlParams(url)) {
     let dynUrlPattern = generateUrlPattern(url);
-    // if (duplicateDynamicUrls.has(dynUrlPattern)) {
+    let UrlFilter = `${method}+${dynUrlPattern}`;
+
+    // if (duplicateDynamicUrls.has(UrlFilter)) {
     //   return;
     // }else{
-    //   duplicateDynamicUrls.add(dynUrlPattern);
+    //   duplicateDynamicUrls.add(UrlFilter);
     // }
 
-    if (globalBloomFilter.has(dynUrlPattern)) {
-      return;
+    if (globalBloomFilter.has(UrlFilter)) {
+      return false;
     } else {
-      globalBloomFilter.add(dynUrlPattern);
+      globalBloomFilter.add(UrlFilter);
     }
   } else {
-    // if (duplicateDynamicUrls.has(url)) {
+    let UrlFilter = `${method}+${url}`;
+    // if (duplicateDynamicUrls.has(UrlFilter)) {
     //   return;
     // }else{
-    //   duplicateDynamicUrls.add(url);
+    //   duplicateDynamicUrls.add(UrlFilter);
     // }
 
-    if (globalBloomFilter.has(url)) {
-      return;
+    if (globalBloomFilter.has(UrlFilter)) {
+      return false;
     } else {
-      globalBloomFilter.add(url);
+      globalBloomFilter.add(UrlFilter);
     }
   }
 
   await cluster.queue(url);
+  return true;
+}
+
+function isTargetScope(url, targetScope) {
+  try {
+    let _url = new URL(url);
+    currentScope = _url.host;
+
+    // 判断是否为当前任务领空
+    if (currentScope !== targetScope) {
+      return false;
+    }
+  } catch (error) {
+    console.log("url parse error", error);
+    return false;
+  }
+
+  return true;
 }
 
 function log4Request(
@@ -159,7 +181,7 @@ function log4Request(
   });
   fs.appendFile("save-request-json.txt", json + "\n", function (err) {
     if (err) throw err;
-    console.log(json);
+    // console.log(json);
   });
 }
 
@@ -234,23 +256,25 @@ const options = yargs
     puppeteerOptions: launchOptions,
   });
 
-
-
   await cluster.task(async ({ page, data: url }) => {
     var status = null;
 
-    let currentScope = "";
-    try {
-      let _url = new URL(url);
-      currentScope = _url.host;
-    } catch (error) {
-      console.log("cluster error => ", url);
-      return;
-    }
+    // let currentScope = "";
+    // try {
+    //   let _url = new URL(url);
+    //   currentScope = _url.host;
+    // } catch (error) {
+    //   console.log("cluster error => ", url);
+    //   return;
+    // }
 
-    // 判断是否为当前任务领空
-    if (currentScope !== targetScope) {
-      return;
+    // // 判断是否为当前任务领空
+    // if (currentScope !== targetScope) {
+    //   return;
+    // }
+
+    if (!isTargetScope(url, targetScope)){
+      return ;
     }
 
     // 判断是否为注销页面
@@ -266,57 +290,30 @@ const options = yargs
       await page.setCookie.apply(page, cookies);
     }
 
-
-
     try {
 
-      // intercept(page, patterns.XHR("*"), {
-      //   onInterception: (event) => {
-
-      //     // console.log(`${event.request.url} ${event.request.method} intercepted.`);
-      //     // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-
-      //     addUrlToClusterQueue(cluster, url);
-
-      //     // try {
-      //     //   let url = event.request.url;
-      //     //   let method = event.request.method;
-      //     //   let headers = event.request.headers;
-      //     //   let body = event.request.postData ?? null;
-      //     //   let cookies = page.cookies();
-  
-      //     //   log4Request(url, method, headers, cookies, body);
-            
-      //     //   addUrlToClusterQueue(cluster, url);
-      //     // } catch (error) {
-      //     //   console.log(error);
-      //     // }
-      //   },
-      // });
-      
       // 这是个错误示范，保留
       // intercept(page, patterns.XHR("*"), {
       //   onInterception: (event) => async (response) => {
       //     console.log(`${event.request.url} ${event.request.method} intercepted.`);
       //     // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-  
+
       //     try {
       //       let url = event.request.url;
       //       let method = event.request.method;
       //       let headers = event.request.headers;
       //       let body = event.request.body;
       //       let cookies = await page.cookies();
-  
+
       //       // await cluster.queue(url);
       //       log4Request(url, method, headers, cookies, body);
-  
+
       //       await addUrlToClusterQueue(cluster, url);
       //     } catch (error) {
       //       console.log(error);
       //     }
       //   },
       // });
-
 
       status = await page.goto(url, {
         waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
@@ -330,23 +327,52 @@ const options = yargs
       let method = status.request().method();
       let headers = status.request().headers();
       let body = status.request().postData() ?? null;
-
       let cookies = await page.cookies();
       log4Request(url, method, headers, cookies, body);
+
+      if (page.isClosed()){
+        console.log("page is closed", url);
+        return ;
+      }
+
+      intercept(page, patterns.XHR("*"), {
+        onInterception: (event) => {
+
+          try {
+            let eventUrl = event.request.url;
+            let eventMethod = event.request.method;
+  
+            console.log(`${eventUrl} ${eventMethod} intercepted.`);
+            // logger.info(`${eventUrl} ${eventMethod} intercepted.`);
+  
+  
+            // add url queue
+            let isCapture = addUrlToClusterQueue(
+              cluster,
+              eventUrl,
+              event.request.method
+            );
+  
+            isCapture.then((isCapture) => {
+              // 加入过滤器后记录http, 可以排除掉一些不需要的请求
+              if (isCapture && isTargetScope(eventUrl, targetScope)) {
+  
+                let headers = event.request.headers;
+                let body = event.request.postData ?? null;
+                log4Request(eventUrl, eventMethod, headers, cookies, body);
+              }
+  
+            });  
+          } catch (error) {
+            
+          }
+
+        },
+      });
     } catch (error) {
       console.log(`${Date()} cluster error => ${url} ${error}`);
       return;
     }
-
-    intercept(page, patterns.XHR("*"), {
-      onInterception: (event) => {
-
-        console.log(`${event.request.url} ${event.request.method} intercepted.`);
-        // logger.info(`${event.request.url} ${event.request.method} intercepted.`);
-
-        addUrlToClusterQueue(cluster, url);
-      },
-    });
 
     // var tryCount = 0;
     // var trySuccess = false;
@@ -645,7 +671,6 @@ const options = yargs
 
     await sleep(3000);
     // await page.waitForTimeout(3000);
-
   });
 
   const page = await browser.newPage();
@@ -818,7 +843,8 @@ const options = yargs
     if (!tag.trim()) {
       continue;
     }
-    await cluster.queue(tag);
+    // await cluster.queue(tag);
+    addUrlToClusterQueue(cluster, tag);
   }
 
   for (var i = 0; i < comment_links.length; i++) {
@@ -827,7 +853,8 @@ const options = yargs
     if (!tag.trim()) {
       continue;
     }
-    await cluster.queue(tag);
+    // await cluster.queue(tag);
+    addUrlToClusterQueue(cluster, tag);
   }
 
   for (var i = 0; i < xxx_links.length; i++) {
@@ -836,7 +863,8 @@ const options = yargs
     if (!tag.trim()) {
       continue;
     }
-    await cluster.queue(tag);
+    // await cluster.queue(tag);
+    addUrlToClusterQueue(cluster, tag);
   }
 
   // await cluster.queue('http://121.196.32.153:8080/WebGoat/start.mvc#lesson/SqlInjection.lesson/10');
