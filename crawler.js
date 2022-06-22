@@ -334,6 +334,11 @@ const options = yargs
       let cookies = await page.cookies();
       log4Request(url, method, headers, cookies, body);
 
+      const connection = page.client().connection();
+      if (!connection){
+        return ;
+      }
+
       if (page.isClosed()){
         console.log("page is closed", url);
         return ;
@@ -368,7 +373,8 @@ const options = yargs
   
             });  
           } catch (error) {
-            console.log(error);
+            // console.log(error);
+            console.error(error);
           }
 
         },
