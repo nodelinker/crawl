@@ -2,7 +2,7 @@
 
 一个基于chrome headless的扫描器爬虫
 
-# todo
+## todo
 
 - [x] dom0 event triger
 - [x] dom2 event triger
@@ -18,12 +18,13 @@
 - [x] 获取comments link
 - [ ] 获取object link
 - [ ] 增加a标签src, href, data-url, data-href
-- [ ] 处理 30x 跳转
+- [x] 处理 30x 跳转
 - [ ] 处理 40x 认证弹窗
 - [x] 处理 header
 - [x] handle javascript alert
 - [x] 代理模式
 - [ ] button事件触发，这个比较纠结。点Button会改变页面逻辑走向，在某种场景下会导致页面爬取覆盖率变低。暂时还是不加了
+- [ ] handle basic auth
 
 
 

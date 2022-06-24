@@ -6,8 +6,7 @@ const { URL } = require("url");
 const winston = require("winston");
 const { BloomFilter } = require("bloom-filters");
 const yargs = require("yargs");
-const { option } = require("yargs");
-const { default: cluster } = require("cluster");
+
 
 const logLevels = {
   fatal: 0,
@@ -26,6 +25,7 @@ let duplicateDynamicUrls = new Set();
 // This is where your size / probability trade-offs are made
 // http://hur.st/bloomfilter?n=100000&p=1.0E-6
 // 2875518 ~350kb
+
 
 let globalBloomFilter = new BloomFilter(1073741824, 10);
 
@@ -142,6 +142,7 @@ async function addUrlToClusterQueue(cluster, url, method = "GET") {
     } else {
       globalBloomFilter.add(UrlFilter);
     }
+
   }
 
   // 只有GET方法才能加入队列
@@ -319,6 +320,16 @@ const options = yargs
       //   },
       // });
 
+      await page.setRequestInterception(true);
+      page.on('request', request => {
+        if (request.isNavigationRequest() && request.redirectChain().length !== 0) {
+          request.abort();
+        } 
+        else {
+          request.continue();
+        }
+      });
+
       status = await page.goto(url, {
         waitUntil: ["load", "domcontentloaded", "networkidle0", "networkidle2"],
         timeout: 1000 * 60,
@@ -346,7 +357,6 @@ const options = yargs
 
       intercept(page, patterns.XHR("*"), {
         onInterception: (event) => {
-
           try {
             let eventUrl = event.request.url;
             let eventMethod = event.request.method;
@@ -732,6 +742,13 @@ const options = yargs
   let a_tag_links = await page.evaluate(() => {
     let elements = Array.from(document.querySelectorAll("a"));
     let links = elements.map((element) => {
+
+      // 如果链接非http开头，则判断为相对链接加上location.href当前页面url
+      if (!(/^(https|http):\/\//i).test(element.href)) {
+        let url = location.href.substring(0, str.lastIndexOf("/") + 1);
+        url += element.href;
+        return url;
+      }
       return element.href;
     });
     return links;
