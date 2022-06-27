@@ -17,7 +17,7 @@
 - [ ] 识别过滤伪静态url
 - [x] 获取comments link
 - [ ] 获取object link
-- [ ] 增加a标签src, href, data-url, data-href
+- [x] 增加a标签src, href, data-url, data-href
 - [x] 处理 30x 跳转
 - [ ] 处理 40x 认证弹窗
 - [x] 处理 header

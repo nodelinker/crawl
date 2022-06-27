@@ -323,6 +323,8 @@ const options = yargs
       await page.setRequestInterception(true);
       page.on('request', request => {
         if (request.isNavigationRequest() && request.redirectChain().length !== 0) {
+
+          
           request.abort();
         } 
         else {
@@ -741,20 +743,64 @@ const options = yargs
   // find a[href]
   let a_tag_links = await page.evaluate(() => {
     let elements = Array.from(document.querySelectorAll("a"));
-    let links = elements.map((element) => {
+    let links = [];
 
-      // 如果链接非http开头，则判断为相对链接加上location.href当前页面url
-      if (!(/^(https|http):\/\//i).test(element.href)) {
-        let url = location.href.substring(0, str.lastIndexOf("/") + 1);
-        url += element.href;
-        return url;
+    function isEmpty(value) {
+      return (
+        (typeof value == "string" && !value.trim()) ||
+        typeof value == "undefined" ||
+        value === null
+      );
+    }
+    
+    elements.map((element) => {
+
+      let href = element.getAttribute("href");
+      let src = element.getAttribute("src");
+      let dataSrc = element.getAttribute("src-data");
+      let dataUrl = element.getAttribute("data-url");
+
+
+      if (!isEmpty(href)) {
+        // 如果链接非http开头，则判断为相对链接加上location.href当前页面url
+        if (!isEmpty(href) && !(/^(https|http):\/\//i).test(href)) {
+          let currentUrl = location.href
+          let url = currentUrl.substring(0, currentUrl.lastIndexOf("/") + 1);
+          url += href;
+          return links.push(url);
+        }
+        return links.push(href);
+      }else if (!isEmpty(src)) {
+        if (!isEmpty(src) && !(/^(https|http):\/\//i).test(src)) {
+          let currentUrl = location.href
+          let url = currentUrl.substring(0, currentUrl.lastIndexOf("/") + 1);
+          url += src;
+          return links.push(url);
+        }
+        return links.push(src);
+      }else if(!isEmpty(dataSrc)){
+        if (!isEmpty(dataSrc) && !(/^(https|http):\/\//i).test(dataSrc)) {
+          let currentUrl = location.href
+          let url = currentUrl.substring(0, currentUrl.lastIndexOf("/") + 1);
+          url += dataSrc;
+          return links.push(url);
+        }
+        return links.push(dataSrc);
+      }else if(!isEmpty(dataUrl)){
+        if (!isEmpty(dataUrl) && !(/^(https|http):\/\//i).test(dataUrl)) {
+          let currentUrl = location.href
+          let url = currentUrl.substring(0, currentUrl.lastIndexOf("/") + 1);
+          url += dataUrl;
+          return links.push(url);
+        }
+        return links.push(dataUrl);
+      }else{
+        // do nothing
       }
-      return element.href;
     });
-    return links;
 
-    // let tags = document.querySelectorAll('a');
-    // return tags;
+
+    return links;
   });
 
   // find comments url
