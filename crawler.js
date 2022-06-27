@@ -740,11 +740,7 @@ const options = yargs
     await dialog.dismiss();
   });
 
-  // find a[href]
-  let a_tag_links = await page.evaluate(() => {
-    let elements = Array.from(document.querySelectorAll("a"));
-    let links = [];
-
+  await page.evaluate(()=>{
     function isEmpty(value) {
       return (
         (typeof value == "string" && !value.trim()) ||
@@ -752,6 +748,12 @@ const options = yargs
         value === null
       );
     }
+  });
+
+  // find a[href]
+  let a_tag_links = await page.evaluate(() => {
+    let elements = Array.from(document.querySelectorAll("a"));
+    let links = [];
     
     elements.map((element) => {
 
@@ -838,6 +840,29 @@ const options = yargs
     }
 
     return links;
+  });
+
+  // final object links
+  let object_links = await page.evaluate(() => {
+    let links = [];
+    let elements = Array.from(document.querySelectorAll("[data]"));
+    elements.map((element) => {
+
+      let data = element.getAttribute("data");
+      if (!isEmpty(data)) {
+        // 如果链接非http开头，则判断为相对链接加上location.href当前页面url
+        if (!isEmpty(data) && !(/^(https|http):\/\//i).test(data)) {
+          let currentUrl = location.href
+          let url = currentUrl.substring(0, currentUrl.lastIndexOf("/") + 1);
+          url += data;
+          return links.push(url);
+        }
+        return links.push(data);
+      }
+    });
+
+    return links;
+
   });
 
   // 遍历节点
@@ -934,6 +959,16 @@ const options = yargs
 
   for (var i = 0; i < xxx_links.length; i++) {
     let tag = xxx_links[i];
+    console.log("cluster url: ", tag);
+    if (!tag.trim()) {
+      continue;
+    }
+    // await cluster.queue(tag);
+    addUrlToClusterQueue(cluster, tag);
+  }
+
+  for (var i = 0; i < object_links.length; i++) {
+    let tag = object_links[i];
     console.log("cluster url: ", tag);
     if (!tag.trim()) {
       continue;
