@@ -156,10 +156,7 @@ module.exports = {
         _url.pathname = filteredPath;
         
       
-        
+        return `${method}+${_url.href}`;
     },
 
-
-
-    bloomFilter: new BloomFilter(1073741824, 10),
 };

@@ -237,7 +237,7 @@ const options = yargs
       "--disable-web-security",
       "--disable-xss-auditor", // 关闭 XSS Auditor
       "--no-zygote",
-      "--no-sandbox",
+      // "--no-sandbox",
       "--disable-setuid-sandbox",
       "--allow-running-insecure-content", // 允许不安全内容
       "--disable-webgl",
@@ -246,11 +246,13 @@ const options = yargs
     ],
   };
 
-  const browser = await puppeteer.launch({
-    headless: false,
-    devtools: true,
-    puppeteerOptions: launchOptions,
-  });
+  // const browser = await puppeteer.launch({
+  //   headless: false,
+  //   devtools: true,
+  //   puppeteerOptions: launchOptions,
+  // });
+
+  const browser = await puppeteer.launch(launchOptions);
 
   // 初始化cluster
   const cluster = await Cluster.launch({
@@ -741,6 +743,12 @@ const options = yargs
   });
 
   await page.evaluate(()=>{
+
+  });
+
+  // find a[href]
+  let a_tag_links = await page.evaluate(() => {
+
     function isEmpty(value) {
       return (
         (typeof value == "string" && !value.trim()) ||
@@ -748,10 +756,7 @@ const options = yargs
         value === null
       );
     }
-  });
 
-  // find a[href]
-  let a_tag_links = await page.evaluate(() => {
     let elements = Array.from(document.querySelectorAll("a"));
     let links = [];
     
